@@ -21,26 +21,32 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Node 20
+        if: env.AWS_ROLE_ARN != ''
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
       - name: Credenciales AWS (OIDC, sin claves permanentes)
+        if: env.AWS_ROLE_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: us-west-1
 
       - name: Dependencias
+        if: env.AWS_ROLE_ARN != ''
         run: npm ci
 
       - name: Leer DynamoDB y generar data.json
+        if: env.AWS_ROLE_ARN != ''
         run: node scripts/fetch.mjs
         env:
           TABLE_NAME: LecturaSensor
