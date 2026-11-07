@@ -393,50 +393,94 @@
       renderTable(rows);
     }
 
+    function setWarning(message) {
+      const box = $("warning");
+      box.style.display = message ? "block" : "none";
+      box.textContent = message ?? "";
+    }
+
+    function applyPayload(payload, { live, extraWarning } = {}) {
+      let json = payload;
+      if (Array.isArray(json)) json = { rows: json, generatedAt: null };
+
+      const incoming = json.rows ?? [];
+      DATA.demo = Boolean(json.demo);
+      DATA.source = json.source ?? null;
+      DATA.total = Number(json.total ?? json.count ?? incoming.length);
+
+      // Siempre reemplazamos: el panel refleja exactamente lo que hay en la fuente.
+      DATA.rows = incoming;
+      DATA.generatedAt = json.generatedAt ?? DATA.generatedAt;
+
+      setError(null);
+      $("dot").classList.remove("error");
+      $("dot").classList.toggle("live", Boolean(live));
+      $("updated").textContent = live
+        ? `En vivo · ${dateFmt.format(new Date(DATA.generatedAt ?? Date.now()))}`
+        : `Snapshot: ${DATA.generatedAt ? dateFmt.format(new Date(DATA.generatedAt)) : "sin fecha"}`;
+      $("footer").textContent = live
+        ? `Datos en vivo desde DynamoDB (${POLL_MS / 1000} s). API: ${API}`
+        : DATA.source?.startsWith("import:")
+          ? "Snapshot importado manualmente. No se actualiza solo."
+          : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 5 minutos.";
+      $("demo").style.display = DATA.demo ? "block" : "none";
+
+      const importNotice = DATA.source?.startsWith("import:")
+        ? `Datos importados manualmente desde ${DATA.source.slice(7)}. Es una foto fija; para datos en vivo ejecuta npm start.`
+        : null;
+      setWarning(extraWarning ?? json.warning ?? importNotice);
+
+      fillSensorSelect();
+      render();
+    }
+
+    function showError(err) {
+      $("dot").classList.add("error");
+      $("dot").classList.remove("live");
+      $("updated").textContent = "Error al cargar";
+      setError(`No se pudieron cargar los datos (${err.message}). Si abriste el archivo con file://, usa "npm run serve".`);
+    }
+
     async function load() {
+      const snapshotUrl = `data.json?t=${Date.now()}`;
+
+      if (!API) {
+        try {
+          const res = await fetch(snapshotUrl, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          applyPayload(await res.json(), { live: false });
+        } catch (err) {
+          showError(err);
+        }
+        return;
+      }
+
       try {
-        const url = API ? `${API}/readings?limit=2000` : `data.json?t=${Date.now()}`;
-
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await fetch(`${API}/readings?limit=2000`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        let json = await res.json();
-        if (Array.isArray(json)) json = { rows: json, generatedAt: null };
-
-        const incoming = json.rows ?? [];
-        DATA.demo = Boolean(json.demo);
-        DATA.source = json.source ?? null;
-        DATA.total = Number(json.total ?? json.count ?? incoming.length);
-
-        // Siempre reemplazamos: el panel refleja exactamente lo que hay en la fuente.
-        DATA.rows = incoming;
-        DATA.generatedAt = json.generatedAt ?? DATA.generatedAt;
-
-        setError(null);
-        $("dot").classList.remove("error");
-        $("dot").classList.toggle("live", Boolean(API));
-        $("updated").textContent = API
-          ? `En vivo · ${dateFmt.format(new Date(DATA.generatedAt ?? Date.now()))}`
-          : `Snapshot: ${DATA.generatedAt ? dateFmt.format(new Date(DATA.generatedAt)) : "sin fecha"}`;
-        $("footer").textContent = API
-          ? `Datos en vivo desde DynamoDB (${POLL_MS / 1000} s). API: ${API}`
-          : DATA.source?.startsWith("import:")
-            ? "Snapshot importado manualmente. No se actualiza solo."
-            : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 5 minutos.";
-        $("demo").style.display = DATA.demo ? "block" : "none";
-
-        const importNotice = DATA.source?.startsWith("import:")
-          ? `Datos importados manualmente desde ${DATA.source.slice(7)}. Es una foto fija; para datos en vivo ejecuta npm start.`
-          : null;
-        const notice = json.warning ?? importNotice;
-        $("warning").style.display = notice ? "block" : "none";
-        $("warning").textContent = notice ?? "";
-
-        fillSensorSelect();
-        render();
-      } catch (err) {
+        applyPayload(await res.json(), { live: true });
+      } catch (apiErr) {
         $("dot").classList.add("error");
-        $("updated").textContent = "Error al cargar";
-        setError(`No se pudieron cargar los datos (${err.message}). Si abriste el archivo con file://, usa "npm run serve".`);
+        $("dot").classList.remove("live");
+
+        // Si ya había datos en pantalla, no los borramos por un fallo temporal.
+        if (DATA.rows.length) {
+          $("updated").textContent = `Sin conexión · último dato ${dateFmt.format(new Date(DATA.generatedAt ?? Date.now()))}`;
+          setWarning(`No se pudo conectar al API en vivo (${apiErr.message}). Mostrando la última lectura cargada; se reintenta cada ${POLL_MS / 1000} s.`);
+          return;
+        }
+
+        // Primera carga: usamos data.json como respaldo para no dejar el panel vacío.
+        try {
+          const res = await fetch(snapshotUrl, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          applyPayload(await res.json(), {
+            live: false,
+            extraWarning: `No se pudo conectar al API en vivo (${apiErr.message}). Mostrando el último snapshot guardado.`,
+          });
+        } catch {
+          showError(apiErr);
+        }
       }
     }
 

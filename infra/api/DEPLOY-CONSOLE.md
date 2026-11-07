@@ -18,6 +18,21 @@ Lambda Function URL  ──►  DynamoDB LecturaSensor
 
 ---
 
+## Cómo hacerlo sin romper nada
+
+Este cambio es **aditivo**: no modifica DynamoDB ni tu Lambda del ESP32.
+
+- La Lambda nueva solo hace `dynamodb:Scan` (lectura). No puede escribir ni borrar.
+- No toques la Lambda que recibe los datos del ESP32: crea una **función nueva**
+  (`sensor-dashboard-api`) aparte.
+- No cambies `dashboard/config.js` hasta que la Function URL responda bien.
+- El workflow de GitHub sigue generando `data.json` cada 5 min como respaldo.
+- Si la API falla, el panel ahora muestra el último snapshot en vez de quedarse vacío.
+- **Rollback:** en `dashboard/config.js` pon `apiUrl: ""` y haz push. El panel vuelve
+  al modo snapshot. También puedes borrar la Function URL; DynamoDB no se toca.
+
+---
+
 ## 1. Crear la función Lambda
 
 1. Entra a **AWS Console → Lambda → Create function**.
