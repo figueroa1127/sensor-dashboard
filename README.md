@@ -139,11 +139,19 @@ Copia el `RoleArn` del output y guárdalo como secret del repo:
 **Settings → Secrets and variables → Actions → New repository secret**
 `AWS_ROLE_ARN` = `arn:aws:iam::<cuenta>:role/github-sensor-dashboard`
 
-### Alternativa rápida (menos segura)
+### Alternativa con claves (AWS Academy / usuario IAM)
 
-Crea un usuario IAM con `AmazonDynamoDBReadOnlyAccess` y guarda
-`AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` como secrets. Luego elimina el paso
-`configure-aws-credentials` con `role-to-assume` (las credenciales se toman del entorno).
+El workflow también acepta claves estáticas. Añade estos secrets:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN` (solo si tus credenciales son temporales, como en AWS Academy)
+
+**Settings → Secrets and variables → Actions → New repository secret**.
+
+Si existe `AWS_ROLE_ARN`, el workflow usa OIDC; si no, usa estas claves. No hace falta
+tocar el YAML. Ten en cuenta que las credenciales de AWS Academy caducan: cuando dejen
+de funcionar, actualiza los secrets y vuelve a ejecutar el workflow.
 
 ## 4. Ejecutar
 

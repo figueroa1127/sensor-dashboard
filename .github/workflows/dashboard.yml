@@ -23,12 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      HAS_AWS_KEYS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Node 20
-        if: env.AWS_ROLE_ARN != ''
+        if: env.AWS_ROLE_ARN != '' || env.HAS_AWS_KEYS == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -42,15 +43,25 @@ jobs:
           aws-region: us-west-1
 
       - name: Dependencias
-        if: env.AWS_ROLE_ARN != ''
+        if: env.AWS_ROLE_ARN != '' || env.HAS_AWS_KEYS == 'true'
         run: npm ci
 
-      - name: Leer DynamoDB y generar data.json
+      - name: Leer DynamoDB (OIDC)
         if: env.AWS_ROLE_ARN != ''
         run: node scripts/fetch.mjs
         env:
           TABLE_NAME: LecturaSensor
           AWS_REGION: us-west-1
+
+      - name: Leer DynamoDB (claves de AWS Academy / IAM)
+        if: env.AWS_ROLE_ARN == '' && env.HAS_AWS_KEYS == 'true'
+        run: node scripts/fetch.mjs
+        env:
+          TABLE_NAME: LecturaSensor
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5
