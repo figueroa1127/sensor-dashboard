@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: API en vivo (API Gateway HTTP + Lambda) para el dashboard de LecturaSensor.
+
+Parameters:
+  TableName:
+    Type: String
+    Default: LecturaSensor
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: Origen permitido para CORS, ej. https://tu-usuario.github.io
+  MaxItems:
+    Type: Number
+    Default: 5000
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 15
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  SensorHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods:
+          - GET
+          - OPTIONS
+        AllowHeaders:
+          - content-type
+        MaxAge: 600
+
+  SensorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sensor-dashboard-api
+      Handler: index.handler
+      CodeUri: .
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          MAX_ITEMS: !Ref MaxItems
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TableName
+      Events:
+        Readings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SensorHttpApi
+            Path: /readings
+            Method: GET
+        Latest:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SensorHttpApi
+            Path: /latest
+            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: Pega esta URL en dashboard/config.js (apiUrl)
+    Value: !Sub "https://${SensorHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

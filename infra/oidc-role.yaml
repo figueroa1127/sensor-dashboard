@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Rol IAM para que GitHub Actions lea la tabla LecturaSensor (OIDC, sin claves permanentes).
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: Usuario u organización de GitHub (ej. edyam)
+  GitHubRepo:
+    Type: String
+    Description: Nombre del repositorio (ej. sensor-dashboard)
+  CreateOidcProvider:
+    Type: String
+    Default: "yes"
+    AllowedValues: ["yes", "no"]
+    Description: Elige "no" si el proveedor OIDC de GitHub ya existe en esta cuenta.
+
+Conditions:
+  ShouldCreateProvider: !Equals [!Ref CreateOidcProvider, "yes"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  DashboardRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-sensor-dashboard
+      Description: Lectura de solo lectura de LecturaSensor para GitHub Pages
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateProvider
+                - !Ref GitHubOidcProvider
+                - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrg}/${GitHubRepo}:*
+      Policies:
+        - PolicyName: lectura-sensor-readonly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !Sub arn:aws:dynamodb:us-west-1:${AWS::AccountId}:table/LecturaSensor
+                  - !Sub arn:aws:dynamodb:us-west-1:${AWS::AccountId}:table/LecturaSensor/index/*
+
+Outputs:
+  RoleArn:
+    Description: Copia este valor en el secret AWS_ROLE_ARN del repositorio
+    Value: !GetAtt DashboardRole.Arn

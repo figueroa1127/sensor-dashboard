@@ -1,0 +1,66 @@
+name: Actualizar dashboard
+
+on:
+  schedule:
+    # GitHub acepta como mínimo 5 min; en la práctica puede tardar 5-15 min.
+    # No es tiempo real: para eso usa la Function URL (ver infra/api/DEPLOY-CONSOLE.md).
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Credenciales AWS (OIDC, sin claves permanentes)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-1
+
+      - name: Dependencias
+        run: npm ci
+
+      - name: Leer DynamoDB y generar data.json
+        run: node scripts/fetch.mjs
+        env:
+          TABLE_NAME: LecturaSensor
+          AWS_REGION: us-west-1
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Empaquetar dashboard
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

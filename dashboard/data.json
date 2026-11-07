@@ -1,0 +1,1 @@
+{"generatedAt":"2026-11-07T16:03:33.441Z","table":"LecturaSensor","source":"import:item-ejemplo.json","demo":false,"total":1,"count":1,"rows":[{"sensor":"sensor-01","fecha":"2026-11-07T15:55:34.000Z","frontal":17.78,"izquierda":45.2,"derecha":10.47,"obstaculo":1,"direccion":"izquierda","girando":true}]}

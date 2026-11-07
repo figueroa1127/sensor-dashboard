@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard · LecturaSensor</title>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121b2e;
+      --panel-2: #0f1728;
+      --line: #1f2c45;
+      --text: #e6edf7;
+      --muted: #8ea0bd;
+      --blue: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 20% -10%, #16233d 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 28px clamp(16px, 4vw, 48px) 48px;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      font-size: 12px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); font-weight: 650; }
+    h2 { margin: 0 0 14px; font-size: 15px; font-weight: 600; color: #c9d6ea; }
+    .status { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+    .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(16,185,129,.15);
+    }
+    .dot.error { background: var(--red); box-shadow: 0 0 0 4px rgba(239,68,68,.15); }
+    .dot.live { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,.20); }
+      50% { box-shadow: 0 0 0 8px rgba(16,185,129,.02); }
+    }
+    button, select {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover, select:hover { border-color: #35507c; }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .filters label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+    .muted { color: var(--muted); font-size: 13px; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .kpis article {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .kpis span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .kpis strong { font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
+    .kpis strong small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .canvas { position: relative; height: 320px; }
+    .canvas.short { height: 260px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    tbody tr:hover { background: rgba(59,130,246,.06); }
+    td.num { font-variant-numeric: tabular-nums; }
+    .pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 12px; background: rgba(239,68,68,.12); color: #fca5a5;
+    }
+    .pill.ok { background: rgba(16,185,129,.12); color: #6ee7b7; }
+    footer { margin-top: 22px; color: var(--muted); font-size: 12px; }
+    #error, #demo, #warning {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #error {
+      background: rgba(239,68,68,.12);
+      border: 1px solid rgba(239,68,68,.35);
+      color: #fecaca;
+    }
+    #demo, #warning {
+      background: rgba(245,158,11,.12);
+      border: 1px solid rgba(245,158,11,.4);
+      color: #fcd34d;
+    }
+    #demo code, #warning code {
+      background: rgba(0,0,0,.25);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">AWS DynamoDB · LecturaSensor</p>
+      <h1>Panel de sensores</h1>
+    </div>
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span id="updated">Cargando datos…</span>
+      <button id="refresh" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <div id="error"></div>
+  <div id="demo">
+    <strong>Datos de demostración.</strong> No estás viendo tu tabla DynamoDB.
+    Ejecuta <code>npm start</code> con credenciales AWS para leer tu tabla real, o
+    configura <code>apiUrl</code> en <code>dashboard/config.js</code>.
+  </div>
+  <div id="warning"></div>
+
+  <section class="filters">
+    <label>Sensor
+      <select id="sensor"><option value="">Todos</option></select>
+    </label>
+    <label>Rango
+      <select id="range">
+        <option value="50">Últimas 50</option>
+        <option value="200" selected>Últimas 200</option>
+        <option value="1000">Últimas 1000</option>
+        <option value="0">Todas</option>
+      </select>
+    </label>
+    <span class="muted" id="count"></span>
+  </section>
+
+  <section class="kpis">
+    <article><span>Lecturas mostradas</span><strong id="kpi-lecturas">–</strong></article>
+    <article><span>Distancia frontal mínima</span><strong id="kpi-frontal">–</strong></article>
+    <article><span>Distancia izquierda media</span><strong id="kpi-izquierda">–</strong></article>
+    <article><span>Distancia derecha media</span><strong id="kpi-derecha">–</strong></article>
+    <article><span>Obstáculos detectados</span><strong id="kpi-obstaculos">–</strong></article>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <h2>Distancias por lectura (cm)</h2>
+      <div class="canvas"><canvas id="chart-distancias"></canvas></div>
+    </article>
+    <article class="card">
+      <h2>Obstáculos</h2>
+      <div class="canvas short"><canvas id="chart-obstaculos"></canvas></div>
+    </article>
+  </section>
+
+  <section class="card">
+    <h2>Últimas lecturas</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Sensor</th><th>Fecha</th><th>Frontal (cm)</th><th>Izquierda (cm)</th><th>Derecha (cm)</th><th>Acción</th><th>Obstáculo</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer id="footer">
+    Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 10 minutos.
+  </footer>
+
+  <script>
+    const numberFmt = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
+    const dateFmt = new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "medium" });
+
+    const $ = (id) => document.getElementById(id);
+
+    const CONFIG = window.DASHBOARD_CONFIG ?? {};
+    const API = (new URLSearchParams(location.search).get("api") || CONFIG.apiUrl || "").replace(/\/$/, "");
+    const POLL_MS = Number(CONFIG.pollMs ?? (API ? 3000 : 60000));
+
+    let DATA = { rows: [], generatedAt: null, demo: false, total: 0 };
+    let charts = { dist: null, obs: null };
+
+    function setError(message) {
+      const box = $("error");
+      if (!message) { box.style.display = "none"; return; }
+      box.textContent = message;
+      box.style.display = "block";
+    }
+
+    function filteredRows() {
+      const sensor = $("sensor").value;
+      const range = Number($("range").value);
+      let rows = DATA.rows.filter((row) => !sensor || row.sensor === sensor);
+      if (range > 0) rows = rows.slice(-range);
+      return rows;
+    }
+
+    function fillSensorSelect() {
+      const current = $("sensor").value;
+      const sensors = [...new Set(DATA.rows.map((row) => row.sensor))].sort();
+      $("sensor").innerHTML =
+        '<option value="">Todos</option>' +
+        sensors.map((s) => `<option value="${s}">${s}</option>`).join("");
+      if (sensors.includes(current)) $("sensor").value = current;
+    }
+
+    function renderKpis(rows) {
+      const frontales = rows.map((r) => r.frontal).filter((v) => v !== null && v !== undefined);
+      const izquierdas = rows.map((r) => r.izquierda).filter((v) => v !== null && v !== undefined);
+      const derechas = rows.map((r) => r.derecha).filter((v) => v !== null && v !== undefined);
+      const obstaculos = rows.map((r) => r.obstaculo).filter((v) => v !== null && v !== undefined);
+
+      $("kpi-lecturas").textContent = numberFmt.format(rows.length);
+      $("kpi-frontal").innerHTML = frontales.length
+        ? `${numberFmt.format(Math.min(...frontales))}<small>cm</small>`
+        : "–";
+      $("kpi-izquierda").innerHTML = izquierdas.length
+        ? `${numberFmt.format(izquierdas.reduce((a, b) => a + b, 0) / izquierdas.length)}<small>cm</small>`
+        : "–";
+      $("kpi-derecha").innerHTML = derechas.length
+        ? `${numberFmt.format(derechas.reduce((a, b) => a + b, 0) / derechas.length)}<small>cm</small>`
+        : "–";
+
+      if (!obstaculos.length) {
+        $("kpi-obstaculos").textContent = "–";
+      } else if (typeof obstaculos[0] === "number") {
+        $("kpi-obstaculos").textContent = numberFmt.format(obstaculos.reduce((a, b) => a + b, 0));
+      } else {
+        $("kpi-obstaculos").textContent = numberFmt.format(obstaculos.filter(Boolean).length);
+      }
+    }
+
+    function renderDistanceChart(rows) {
+      const frontal = rows.filter((r) => r.frontal != null).map((r) => ({ x: r.fecha, y: r.frontal }));
+      const izquierda = rows.filter((r) => r.izquierda != null).map((r) => ({ x: r.fecha, y: r.izquierda }));
+      const derecha = rows.filter((r) => r.derecha != null).map((r) => ({ x: r.fecha, y: r.derecha }));
+
+      if (charts.dist) {
+        charts.dist.data.datasets[0].data = frontal;
+        charts.dist.data.datasets[1].data = izquierda;
+        charts.dist.data.datasets[2].data = derecha;
+        charts.dist.update("none");
+        return;
+      }
+
+      charts.dist = new Chart($("chart-distancias"), {
+        type: "line",
+        data: {
+          datasets: [
+            { label: "Frontal", data: frontal, borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.15)", borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
+            { label: "Izquierda", data: izquierda, borderColor: "#10b981", backgroundColor: "rgba(16,185,129,.10)", borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
+            { label: "Derecha", data: derecha, borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,.08)", borderWidth: 2, pointRadius: 0, tension: .3, fill: true },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { labels: { color: "#c9d6ea", boxWidth: 12, boxHeight: 12 } } },
+          scales: {
+            x: { type: "time", ticks: { color: "#8ea0bd", maxTicksLimit: 8 }, grid: { color: "rgba(31,44,69,.6)" } },
+            y: { beginAtZero: true, ticks: { color: "#8ea0bd" }, grid: { color: "rgba(31,44,69,.6)" } },
+          },
+        },
+      });
+    }
+
+    function renderObstacleChart(rows) {
+      const values = rows.map((r) => r.obstaculo).filter((v) => v !== null && v !== undefined);
+      if (charts.obs) { charts.obs.destroy(); charts.obs = null; }
+
+      if (!values.length) {
+        charts.obs = new Chart($("chart-obstaculos"), {
+          type: "doughnut",
+          data: { labels: ["Sin datos"], datasets: [{ data: [1], backgroundColor: ["#1f2c45"] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#8ea0bd" } } } },
+        });
+        return;
+      }
+
+      const isBinary = typeof values[0] === "number" && values.every((v) => v === 0 || v === 1);
+
+      if (typeof values[0] === "number" && !isBinary) {
+        charts.obs = new Chart($("chart-obstaculos"), {
+          type: "bar",
+          data: {
+            labels: values.map((_, i) => i + 1),
+            datasets: [{ label: "Obstáculo", data: values, backgroundColor: "rgba(245,158,11,.7)", borderRadius: 4 }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { display: false },
+              y: { beginAtZero: true, ticks: { color: "#8ea0bd" }, grid: { color: "rgba(31,44,69,.6)" } },
+            },
+          },
+        });
+        return;
+      }
+
+      const con = values.filter(Boolean).length;
+      const sin = values.length - con;
+      charts.obs = new Chart($("chart-obstaculos"), {
+        type: "doughnut",
+        data: {
+          labels: ["Con obstáculo", "Libre"],
+          datasets: [{ data: [con, sin], backgroundColor: ["rgba(239,68,68,.8)", "rgba(16,185,129,.8)"], borderWidth: 0 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#c9d6ea" } } } },
+      });
+    }
+
+    function renderTable(rows) {
+      const last = rows.slice(-15).reverse();
+      $("tbody").innerHTML = last.map((row) => {
+        let obs = "–";
+        if (typeof row.obstaculo === "boolean") {
+          obs = row.obstaculo ? '<span class="pill">Sí</span>' : '<span class="pill ok">No</span>';
+        } else if (typeof row.obstaculo === "number") {
+          obs = `<span class="pill">${numberFmt.format(row.obstaculo)}</span>`;
+        }
+        const accion = row.direccion ?? (row.girando ? "girando" : "–");
+        return `<tr>
+          <td>${row.sensor}</td>
+          <td>${dateFmt.format(new Date(row.fecha))}</td>
+          <td class="num">${row.frontal ?? "–"}</td>
+          <td class="num">${row.izquierda ?? "–"}</td>
+          <td class="num">${row.derecha ?? "–"}</td>
+          <td>${accion}</td>
+          <td>${obs}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    function render() {
+      const rows = filteredRows();
+      const total = DATA.total || DATA.rows.length;
+      $("count").textContent = `${rows.length} de ${total} lecturas`;
+      renderKpis(rows);
+      renderDistanceChart(rows);
+      renderObstacleChart(rows);
+      renderTable(rows);
+    }
+
+    async function load() {
+      try {
+        const url = API ? `${API}/readings?limit=2000` : `data.json?t=${Date.now()}`;
+
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        let json = await res.json();
+        if (Array.isArray(json)) json = { rows: json, generatedAt: null };
+
+        const incoming = json.rows ?? [];
+        DATA.demo = Boolean(json.demo);
+        DATA.source = json.source ?? null;
+        DATA.total = Number(json.total ?? json.count ?? incoming.length);
+
+        // Siempre reemplazamos: el panel refleja exactamente lo que hay en la fuente.
+        DATA.rows = incoming;
+        DATA.generatedAt = json.generatedAt ?? DATA.generatedAt;
+
+        setError(null);
+        $("dot").classList.remove("error");
+        $("dot").classList.toggle("live", Boolean(API));
+        $("updated").textContent = API
+          ? `En vivo · ${dateFmt.format(new Date(DATA.generatedAt ?? Date.now()))}`
+          : `Snapshot: ${DATA.generatedAt ? dateFmt.format(new Date(DATA.generatedAt)) : "sin fecha"}`;
+        $("footer").textContent = API
+          ? `Datos en vivo desde DynamoDB (${POLL_MS / 1000} s). API: ${API}`
+          : DATA.source?.startsWith("import:")
+            ? "Snapshot importado manualmente. No se actualiza solo."
+            : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 10 minutos.";
+        $("demo").style.display = DATA.demo ? "block" : "none";
+
+        const importNotice = DATA.source?.startsWith("import:")
+          ? `Datos importados manualmente desde ${DATA.source.slice(7)}. Es una foto fija; para datos en vivo ejecuta npm start.`
+          : null;
+        const notice = json.warning ?? importNotice;
+        $("warning").style.display = notice ? "block" : "none";
+        $("warning").textContent = notice ?? "";
+
+        fillSensorSelect();
+        render();
+      } catch (err) {
+        $("dot").classList.add("error");
+        $("updated").textContent = "Error al cargar";
+        setError(`No se pudieron cargar los datos (${err.message}). Si abriste el archivo con file://, usa "npm run serve".`);
+      }
+    }
+
+    $("sensor").addEventListener("change", render);
+    $("range").addEventListener("change", render);
+    $("refresh").addEventListener("click", load);
+
+    load();
+    setInterval(load, POLL_MS);
+  </script>
+</body>
+</html>

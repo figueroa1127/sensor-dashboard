@@ -1,0 +1,14 @@
+{
+  "idSensor": { "S": "sensor-01_1794037530" },
+  "distanciaFrontal": { "N": "17.78" },
+  "distanciaIzquierda": { "N": "45.2" },
+  "distanciaDerecha": { "N": "10.47" },
+  "fecha": { "S": "2026-11-07T09:55:34" },
+  "obstaculo": { "N": "1" },
+  "accion": {
+    "M": {
+      "direccionTomada": { "S": "izquierda" },
+      "girando": { "BOOL": true }
+    }
+  }
+}
