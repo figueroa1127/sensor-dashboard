@@ -213,7 +213,7 @@
   </section>
 
   <footer id="footer">
-    Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 10 minutos.
+    Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 5 minutos.
   </footer>
 
   <script>
@@ -421,7 +421,7 @@
           ? `Datos en vivo desde DynamoDB (${POLL_MS / 1000} s). API: ${API}`
           : DATA.source?.startsWith("import:")
             ? "Snapshot importado manualmente. No se actualiza solo."
-            : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 10 minutos.";
+            : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 5 minutos.";
         $("demo").style.display = DATA.demo ? "block" : "none";
 
         const importNotice = DATA.source?.startsWith("import:")
