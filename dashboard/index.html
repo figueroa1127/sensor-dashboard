@@ -225,6 +225,7 @@
     const CONFIG = window.DASHBOARD_CONFIG ?? {};
     const API = (new URLSearchParams(location.search).get("api") || CONFIG.apiUrl || "").replace(/\/$/, "");
     const POLL_MS = Number(CONFIG.pollMs ?? (API ? 3000 : 60000));
+    const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 
     let DATA = { rows: [], generatedAt: null, demo: false, total: 0 };
     let charts = { dist: null, obs: null };
@@ -425,9 +426,11 @@
           : "Generado automáticamente por GitHub Actions desde DynamoDB. Los datos se refrescan cada 5 minutos.";
       $("demo").style.display = DATA.demo ? "block" : "none";
 
-      const importNotice = DATA.source?.startsWith("import:")
-        ? `Datos importados manualmente desde ${DATA.source.slice(7)}. Es una foto fija; para datos en vivo ejecuta npm start.`
-        : null;
+      const importNotice = IS_LOCAL
+        ? null
+        : DATA.source?.startsWith("import:")
+          ? `Datos importados manualmente desde ${DATA.source.slice(7)}. Es una foto fija; para datos en vivo ejecuta npm start.`
+          : null;
       setWarning(extraWarning ?? json.warning ?? importNotice);
 
       fillSensorSelect();
